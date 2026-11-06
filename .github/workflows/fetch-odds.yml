@@ -1,0 +1,37 @@
+name: Fetch FanDuel NFL odds
+
+on:
+  schedule:
+    # 6:45 AM Central (12:45 UTC) on Sun, Mon, Thu, about an hour before the 7:43 AM research run.
+    # GitHub can start scheduled jobs late, so this leaves slack. During daylight time
+    # (mid-March on, after the season) this lands at 7:45 AM Central.
+    - cron: "45 12 * * 0,1,4"
+  workflow_dispatch:
+    inputs:
+      slate_date:
+        description: "Slate date YYYY-MM-DD (blank = today, Central time)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch odds
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          SLATE_DATE: ${{ github.event.inputs.slate_date }}
+        run: python fetch_odds.py
+      - name: Commit
+        run: |
+          git config user.name "odds-relay-bot"
+          git config user.email "odds-relay-bot@users.noreply.github.com"
+          git add odds/
+          git diff --cached --quiet || git commit -m "FanDuel odds $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
